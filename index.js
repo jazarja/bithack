@@ -1,7 +1,11 @@
-var CoinKey = require('coinkey');
-var wif = require('wif');
-var rp = require('request-promise');
-var Promise = require('bluebird');
+const CoinKey = require('coinkey');
+const wif = require('wif');
+const rp = require('request-promise');
+const Promise = require('bluebird');
+const HashTable = require('hashtable');
+const cluster = require('cluster');
+const _ = require('lodash');
+const numCPUs = require('os').cpus().length;
 
 const TEST_KEY = '0000000000000000000000000000000000000000000000000000000000000001';
 const TEST_ADDRESS = "1JCe8z4jJVNXSjohjM4i9Hh813dLCNx2Sy";
@@ -15,12 +19,8 @@ function returnHash() {
     return token; //Will return a 32 bit "hash"
 }
 
-var cluster = require('cluster');
-var numCPUs = require('os').cpus().length;
-
 if (cluster.isMaster) {
-
-    for (var i = 0; i < numCPUs; i++) {
+    for (let i = 0; i < numCPUs; i++) {
         cluster.fork();
     }
 
@@ -32,18 +32,19 @@ if (cluster.isMaster) {
         console.log('Worker ' + worker.process.pid + ' has died');
     });
 } else {
-    var promiseList = [];
-    for (var ix = 0; ix < 1000; ix++) {
+    let hashtable = new HashTable();
+    let promiseList = [];
+    for (let ix = 0; ix < 100; ix++) {
         promiseList.push(
             new Promise(function (resolve, reject) {
-                var record = {
+                let record = {
                     "pk": returnHash()
                 };
 
-                var privateKey = new Buffer(record.pk, 'hex');
+                let privateKey = new Buffer(record.pk, 'hex');
                 record.wif = wif.encode(128, privateKey, true);
 
-                var ck = CoinKey.fromWif(record.wif);
+                let ck = CoinKey.fromWif(record.wif);
                 record.wallet = ck.publicAddress;
 
                 resolve(record);
@@ -51,6 +52,8 @@ if (cluster.isMaster) {
                 .then(function (record) {
                     return rp('https://blockchain.info/q/addressbalance/' + record.wallet)
                         .then(function (htmlString) {
+                            hashtable.put(record.wallet, +(htmlString));
+
                             if (+(htmlString) > 0) {
                                 console.log("Found!", JSON.stringify(record));
                             } else {
@@ -66,6 +69,9 @@ if (cluster.isMaster) {
     }
     Promise.all(promiseList)
         .then(function () {
+            _.each(hashtable.keys(), function(key){
+                console.log(key, hashtable.get(key))
+            });
             console.log("DONE");
         });
 }
