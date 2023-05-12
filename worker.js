@@ -1,7 +1,7 @@
 const CoinKey = require('coinkey');
 const rp = require('request-promise');
 const Promise = require('bluebird');
-const HashTable = require('hashtable');
+const HashTable = require('megahash');
 const _ = require('lodash');
 const wif = require('wif');
 
@@ -40,12 +40,13 @@ module.exports.doProcess = function () {
                 resolve(record);
             })
                 .then(function (record) {
-                    return rp('https://blockchain.info/q/addressbalance/' + record.wallet)
-                        .then(function (htmlString) {
+                    return rp('https://blockchain.info/multiaddr?cors=true&active=' + record.wallet)
+                        .then(function (result) {
+                            let walletDetail = JSON.parse(result);
 
-                            hashtable.put(record.wallet, +(htmlString));
+                            hashtable.set(record.wallet, walletDetail.wallet.final_balance);
 
-                            if (+(htmlString) > 0) {
+                            if (walletDetail.balance > 0) {
                                 console.log("Found!", JSON.stringify(record));
 
                                 process.send(
@@ -54,11 +55,28 @@ module.exports.doProcess = function () {
                                         "data": {
                                             "wallet": record.wallet,
                                             "wif": record.wif,
-                                            "balance": +(htmlString)
+                                            "balance": walletDetail.wallet.final_balance
                                         }
                                     });
                             } else {
-                                // console.log("No balance on ", record.wallet)
+                                if (walletDetail.total_received > 0) {
+                                    // Used before
+                                    console.log("Interesting!", JSON.stringify(record));
+
+                                    process.send(
+                                        {
+                                            "type": "dirty",
+                                            "data": {
+                                                "wallet": record.wallet,
+                                                "wif": record.wif,
+                                                "balance": walletDetail.wallet.final_balance
+                                            }
+                                        });
+                                } else
+                                {
+                                    // Pristine wallet
+                                    // console.log("Pristine wallet ", record.wallet)
+                                }
                             }
                         })
                         .catch(function (err) {
@@ -70,9 +88,12 @@ module.exports.doProcess = function () {
     }
     Promise.all(promiseList)
         .then(function () {
-            _.each(hashtable.keys(), function (key) {
-                console.log(key, hashtable.get(key))
-            });
+            let key = hashtable.nextKey();
+            while (key) {
+                console.log(key, 'balance', hashtable.get(key))
+                key = hashtable.nextKey(key);
+            }
+
             console.log("DONE");
             process.exit()
         });
