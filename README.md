@@ -9,7 +9,7 @@ This program operates by generating random Bitcoin wallet private keys, which ar
 
 2. Cross-Checking against Balance Database: Once a private key is generated, it is cross-checked against the address's balance database. This step involves verifying whether the corresponding Bitcoin address associated with the private key has a recorded balance.
 
-Is it possible to find the private key through this method?
+*Is it possible to find the private key through this method?*
 
 Yes, it is theoretically possible to discover a specific Bitcoin private key through a process known as brute forcing. Brute forcing involves attempting to guess each of the 256 bits of the private key correctly. Since each bit can have two potential values (1 or 0), the attacker would need to guess from a staggering range of approximately 2^256 (roughly 10^77) possible values. This immense range of possibilities makes the successful brute forcing of a Bitcoin private key highly improbable.
 
